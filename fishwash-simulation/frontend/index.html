@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>古代鱼洗铜盆振动模态仿真与喷水高度分析系统</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="top-header">
+        <div class="header-left">
+            <span class="header-icon">⚱</span>
+            <h1>古代鱼洗铜盆振动模态仿真与喷水高度分析系统</h1>
+        </div>
+        <div class="header-right">
+            <div class="alert-indicator" id="alertIndicator">
+                <span class="alert-dot"></span>
+                <span class="alert-text">告警正常</span>
+            </div>
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span>未连接</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <aside class="left-panel">
+            <div class="panel-section">
+                <h2 class="section-title">设备选择</h2>
+                <div class="device-selector-wrap">
+                    <select id="deviceSelector" class="device-selector">
+                        <option value="">-- 请选择设备 --</option>
+                    </select>
+                </div>
+                <div class="shape-selector-wrap" style="margin-top:12px;">
+                    <label class="sub-label">盆体形状（覆盖设备形状）</label>
+                    <div class="shape-radio-group">
+                        <label><input type="radio" name="shapeSelector" value="CIRCLE" checked> <span>圆形 ○</span></label>
+                        <label><input type="radio" name="shapeSelector" value="SQUARE"> <span>方形 □</span></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h2 class="section-title">传感器数据</h2>
+                <div class="sensor-cards">
+                    <div class="sensor-card">
+                        <div class="sensor-label">摩擦频率</div>
+                        <div class="sensor-value" id="frictionFreq">--</div>
+                        <div class="sensor-unit">Hz</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-label">振幅</div>
+                        <div class="sensor-value" id="amplitude">--</div>
+                        <div class="sensor-unit">mm</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-label">喷水高度</div>
+                        <div class="sensor-value" id="sprayHeight">--</div>
+                        <div class="sensor-unit">cm</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-label">水温</div>
+                        <div class="sensor-value" id="waterTemp">--</div>
+                        <div class="sensor-unit">°C</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h2 class="section-title">虚拟摩擦体验 <span class="badge-new">NEW</span></h2>
+                <div class="friction-interactive">
+                    <div class="friction-toggle">
+                        <label class="switch">
+                            <input type="checkbox" id="interactiveFrictionToggle">
+                            <span class="slider-switch"></span>
+                        </label>
+                        <span class="friction-toggle-label">启用双耳拖动摩擦</span>
+                    </div>
+                    <p class="friction-hint">
+                        启用后在3D视图中按住双耳（环形手柄）拖动即可模拟真实摩擦过程。<br>
+                        拖动速度越快 → 频率越高 → 喷水越高！
+                    </p>
+                    <div class="friction-metrics" id="frictionMetrics" style="display:none;">
+                        <div class="metric-row">
+                            <span>摩擦速度</span><b id="metricVelocity">0.00 m/s</b>
+                        </div>
+                        <div class="metric-row">
+                            <span>实时频率</span><b id="metricFreq">0 Hz</b>
+                        </div>
+                        <div class="metric-row">
+                            <span>模态阶数</span><b id="metricMode">n=2</b>
+                        </div>
+                        <div class="metric-row">
+                            <span>喷水高度</span><b id="metricSpray">0.0 cm</b>
+                        </div>
+                        <div class="metric-row">
+                            <span>激励振幅</span><b id="metricAmp">0.0 μm</b>
+                        </div>
+                        <div class="friction-status" id="frictionStatus">等待操作...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h2 class="section-title">告警列表</h2>
+                <div class="alert-list" id="alertList">
+                    <div class="alert-empty">暂无告警</div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="center-area">
+            <div class="viewport-section">
+                <div class="viewport-container" id="viewport3d">
+                    <canvas id="threeCanvas"></canvas>
+                </div>
+                <div class="control-bar">
+                    <div class="control-group">
+                        <label for="modeOrder">模态阶数</label>
+                        <select id="modeOrder" class="control-select">
+                            <option value="2">2阶</option>
+                            <option value="3">3阶</option>
+                            <option value="4">4阶</option>
+                            <option value="5">5阶</option>
+                            <option value="6">6阶</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <button id="simulateBtn" class="btn-simulate">启动仿真</button>
+                    </div>
+                    <div class="control-group control-group--slider">
+                        <label for="frictionSlider">摩擦频率</label>
+                        <input type="range" id="frictionSlider" class="control-slider" min="0" max="500" value="100" step="1">
+                        <span class="slider-value" id="frictionSliderValue">100 Hz</span>
+                    </div>
+                    <div class="control-group control-group--slider">
+                        <label for="ampSlider">振幅(mm)</label>
+                        <input type="range" id="ampSlider" class="control-slider" min="0.1" max="5" value="1" step="0.1">
+                        <span class="slider-value" id="ampSliderValue">1.0 mm</span>
+                    </div>
+                    <div class="control-group control-group--slider">
+                        <label for="sprayHeightSlider">喷水(cm)</label>
+                        <input type="range" id="sprayHeightSlider" class="control-slider" min="0" max="50" value="15" step="0.5">
+                        <span class="slider-value" id="sprayHeightSliderValue">15 cm</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-tabs">
+                <button class="tab-btn tab-active" data-tab="charts">📊 仿真图表</button>
+                <button class="tab-btn" data-tab="shape-compare">◯ 形状对比</button>
+                <button class="tab-btn" data-tab="cross-era">⏳ 跨时代对比</button>
+                <button class="tab-btn" data-tab="friction">⚙ 摩擦力学</button>
+            </div>
+
+            <div class="tab-content">
+                <div id="tab-charts" class="tab-pane tab-active">
+                    <div class="charts-section">
+                        <div class="chart-container">
+                            <h3 class="chart-title">振动模态分析</h3>
+                            <canvas id="vibrationChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3 class="chart-title">喷水高度趋势</h3>
+                            <canvas id="sprayChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-shape-compare" class="tab-pane">
+                    <div class="compare-section">
+                        <h3 class="chart-title">圆形鱼洗 vs 方形鱼洗 — 共振频率对比</h3>
+                        <div class="shape-compare-params">
+                            <div class="param-row">
+                                <label>模态阶数 n</label>
+                                <select id="shapeModeOrder">
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                </select>
+                                <button id="runShapeCompare" class="btn-secondary">对比计算</button>
+                            </div>
+                        </div>
+                        <div class="chart-container wide-chart">
+                            <canvas id="shapeCompareChart"></canvas>
+                        </div>
+                        <div class="compare-cards">
+                            <div class="compare-card circle-card">
+                                <h4>⚪ 圆形鱼洗 (Circular)</h4>
+                                <div id="circleResult" class="result-body">点击"对比计算"查看结果</div>
+                            </div>
+                            <div class="compare-card square-card">
+                                <h4>⬛ 方形鱼洗 (Square)</h4>
+                                <div id="squareResult" class="result-body">点击"对比计算"查看结果</div>
+                            </div>
+                        </div>
+                        <div class="compare-conclusion" id="shapeConclusion"></div>
+                    </div>
+                </div>
+
+                <div id="tab-cross-era" class="tab-pane">
+                    <div class="compare-section">
+                        <h3 class="chart-title">跨时代振动技术对比 — 汉代青铜鱼洗 vs 现代压电超声雾化器</h3>
+                        <button id="runCrossEra" class="btn-secondary" style="margin-bottom:12px;">运行跨时代对比</button>
+                        <div class="chart-container wide-chart">
+                            <canvas id="crossEraRadarChart"></canvas>
+                        </div>
+                        <div class="era-summary">
+                            <div class="era-card ancient-card" id="ancientCard"></div>
+                            <div class="era-card modern-card" id="modernCard"></div>
+                        </div>
+                        <div class="era-paradigm" id="eraParadigm"></div>
+                    </div>
+                </div>
+
+                <div id="tab-friction" class="tab-pane">
+                    <div class="compare-section">
+                        <h3 class="chart-title">鱼洗双耳摩擦力学分析 — 库仑摩擦 + 粘滑效应</h3>
+                        <div class="friction-controls-grid">
+                            <div>
+                                <label>法向压力 N (N)</label>
+                                <input type="number" id="frictionForceN" value="20" min="0.1" step="1">
+                            </div>
+                            <div>
+                                <label>摩擦系数 μ</label>
+                                <input type="number" id="frictionCoeff" value="0.35" min="0.01" step="0.01">
+                            </div>
+                            <div>
+                                <label>摩擦速度 v (m/s)</label>
+                                <input type="number" id="frictionVel" value="1.2" min="0.01" step="0.1">
+                            </div>
+                            <div>
+                                <label>柄直径 (mm)</label>
+                                <input type="number" id="handleDiam" value="60" min="10" step="1">
+                            </div>
+                            <div>
+                                <label>行程长度 (mm)</label>
+                                <input type="number" id="strokeLen" value="80" min="10" step="1">
+                            </div>
+                            <div>
+                                <label>接触面积 (cm²)</label>
+                                <input type="number" id="contactArea" value="12" min="0.1" step="0.5">
+                            </div>
+                            <div class="span-2">
+                                <button id="runFrictionAnalyze" class="btn-secondary">执行力学分析</button>
+                            </div>
+                        </div>
+                        <div class="chart-container wide-chart">
+                            <h4 class="chart-title">Stribeck曲线 — 摩擦力-速度关系</h4>
+                            <canvas id="frictionCurveChart"></canvas>
+                        </div>
+                        <div id="frictionAnalysisResult" class="friction-analysis-body">填写参数并点击"执行力学分析"</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="js/fishWashModel.js"></script>
+    <script src="js/waterSurface.js"></script>
+    <script src="js/sprayParticles.js"></script>
+    <script src="js/fish_basin_3d.js"></script>
+    <script src="js/vibration_panel.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
