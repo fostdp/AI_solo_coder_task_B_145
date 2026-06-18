@@ -21,6 +21,12 @@ var VibrationPanel = (function () {
     this.onInteractiveFrictionToggle = null;
     this.basin3dRef = null;
     this.currentTab = 'simulation';
+    this.hapticFeedbackEnabled = false;
+    this.hapticVibrationActive = false;
+    this.hapticLastPattern = null;
+    this.hapticSupported = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+    this.hapticIntensity = 1.0;
+    this.hapticStickSlipPhase = 0;
   }
 
   VibrationPanel.prototype.init = function () {
@@ -415,7 +421,27 @@ var VibrationPanel = (function () {
     var self = this;
     var toggle = document.getElementById('interactiveFrictionToggle');
     var statusEl = document.getElementById('frictionStatus');
+    var hapticToggle = document.getElementById('hapticFeedbackToggle');
+    var hapticStatus = document.getElementById('hapticStatus');
     if (!toggle) return;
+
+    if (hapticToggle) {
+      hapticToggle.addEventListener('change', function () {
+        self.hapticFeedbackEnabled = hapticToggle.checked;
+        if (hapticStatus) {
+          if (self.hapticFeedbackEnabled) {
+            hapticStatus.textContent = self.hapticSupported ? '✅ 触觉反馈已启用' : '⚠️ 设备不支持震动API，启用模拟反馈';
+            hapticStatus.classList.add('active');
+          } else {
+            hapticStatus.textContent = '触觉反馈已关闭';
+            hapticStatus.classList.remove('active');
+          }
+        }
+        if (self.hapticFeedbackEnabled && self.hapticSupported) {
+          navigator.vibrate([50, 30, 50]);
+        }
+      });
+    }
 
     toggle.addEventListener('change', function () {
       var enabled = toggle.checked;
@@ -426,11 +452,15 @@ var VibrationPanel = (function () {
         } else {
           statusEl.textContent = '交互已关闭';
           statusEl.classList.remove('active');
+          self._stopHapticFeedback();
         }
       }
       if (typeof self.onInteractiveFrictionToggle === 'function') {
         self.onInteractiveFrictionToggle(enabled, function (metrics) {
           self._updateFrictionMetrics(metrics);
+          if (self.hapticFeedbackEnabled) {
+            self._triggerHapticFeedback(metrics);
+          }
         });
       }
     });
@@ -457,6 +487,118 @@ var VibrationPanel = (function () {
         statusEl.textContent = '✋ 等待摩擦动作...';
       }
     }
+    var hapticEl = document.getElementById('hapticPattern');
+    if (hapticEl && this.hapticFeedbackEnabled) {
+      if (m && m.isDragging) {
+        var intensity = m.velocity ? Math.min(1.0, m.velocity / 3.0) : 0;
+        var pattern = this.hapticSupported ? '设备震动中' : '模拟触觉反馈';
+        hapticEl.textContent = '📳 ' + pattern + ' · 强度 ' + (intensity * 100).toFixed(0) + '% · 模式 ' + (m.modeOrder || '--') + '阶';
+      } else {
+        hapticEl.textContent = '📳 触觉反馈待机';
+      }
+    } else if (hapticEl) {
+      hapticEl.textContent = '';
+    }
+  };
+
+  VibrationPanel.prototype._triggerHapticFeedback = function (m) {
+    if (!this.hapticFeedbackEnabled || !m) return;
+    if (!m.isDragging || !m.isActive) {
+      this._stopHapticFeedback();
+      return;
+    }
+
+    var v = m.velocity || 0;
+    var freq = m.frequency || 0;
+    var amp = m.amplitude || 0;
+    var spray = m.sprayHeight || 0;
+    var modeOrder = m.modeOrder || 2;
+
+    var intensity = Math.max(0.1, Math.min(1.0, v / 2.5));
+    this.hapticIntensity = intensity;
+
+    var basePulseMs = Math.max(10, Math.min(80, 120 - freq / 20));
+    var gapMs = Math.max(5, Math.min(60, 100 - freq / 15));
+
+    this.hapticStickSlipPhase = (this.hapticStickSlipPhase + 1) % 4;
+    var stickPhase = this.hapticStickSlipPhase < 2;
+
+    var pulseDuration = Math.round(basePulseMs * intensity);
+    var gapDuration = Math.round(gapMs * (1.2 - intensity * 0.5));
+
+    if (spray > 30) {
+      pulseDuration = Math.round(pulseDuration * 1.5);
+      gapDuration = Math.round(gapDuration * 0.6);
+    } else if (spray > 10) {
+      pulseDuration = Math.round(pulseDuration * 1.2);
+      gapDuration = Math.round(gapDuration * 0.8);
+    }
+
+    var pattern;
+    if (modeOrder >= 4 && freq > 500) {
+      pattern = [pulseDuration, gapDuration, pulseDuration, gapDuration, pulseDuration * 2, gapDuration];
+    } else if (modeOrder === 3 && freq > 300) {
+      pattern = [pulseDuration, gapDuration, pulseDuration * 2, gapDuration];
+    } else {
+      pattern = stickPhase
+        ? [pulseDuration * 2, gapDuration, pulseDuration, gapDuration]
+        : [pulseDuration, gapDuration, pulseDuration * 2, gapDuration];
+    }
+
+    if (amp > 0.5) {
+      pattern.push(Math.round(pulseDuration * 1.5));
+    }
+
+    var patternKey = pattern.join('-');
+    if (patternKey !== this.hapticLastPattern) {
+      this.hapticLastPattern = patternKey;
+      if (this.hapticSupported) {
+        try {
+          navigator.vibrate(pattern);
+        } catch (e) {
+          console.warn('Haptic vibration failed:', e);
+        }
+      }
+      this.hapticVibrationActive = true;
+    }
+
+    var hapticDetail = document.getElementById('hapticDetail');
+    if (hapticDetail) {
+      var modeDesc = modeOrder + '阶-' + freq.toFixed(0) + 'Hz';
+      var sprayDesc = spray > 5 ? ' · 喷水' + spray.toFixed(0) + 'cm' : '';
+      var feelDesc = v < 0.5 ? '微震' : v < 1.5 ? '麻酥' : v < 2.5 ? '强震' : '剧烈震动';
+      hapticDetail.textContent = '触觉模式：' + modeDesc + ' · ' + feelDesc + sprayDesc;
+    }
+
+    if (m.sprayThresholdCrossed) {
+      if (this.hapticSupported) {
+        navigator.vibrate([100, 50, 100, 50, 200]);
+      }
+      if (hapticDetail) {
+        hapticDetail.textContent += ' · 🎯 喷水阈值突破！';
+      }
+    }
+  };
+
+  VibrationPanel.prototype._stopHapticFeedback = function () {
+    if (this.hapticSupported && this.hapticVibrationActive) {
+      try {
+        navigator.vibrate(0);
+      } catch (e) {
+        console.warn('Stop vibration failed:', e);
+      }
+    }
+    this.hapticVibrationActive = false;
+    this.hapticLastPattern = null;
+    this.hapticStickSlipPhase = 0;
+    var hapticDetail = document.getElementById('hapticDetail');
+    if (hapticDetail) {
+      hapticDetail.textContent = '';
+    }
+  };
+
+  VibrationPanel.prototype.setHapticIntensity = function (level) {
+    this.hapticIntensity = Math.max(0, Math.min(1.0, level));
   };
 
   VibrationPanel.prototype.bindShapeComparison = function () {

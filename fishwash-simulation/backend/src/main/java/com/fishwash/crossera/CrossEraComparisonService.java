@@ -52,7 +52,7 @@ public class CrossEraComparisonService {
         double ancientParticleCm = Math.max(0.05, ancientSprayCm * 0.008) * 10000.0;
         double ancientParticleUm = Math.min(5000.0, ancientParticleCm * 1000.0);
 
-        double usFlowMlMin = (usPower * usEfficiency * 60.0 / 4.184) / 80.0;
+        double usFlowMlMin = us.getTypicalOutputRateMlH() / 60.0;
         double ancientFlowMlMin = Math.max(1.0, ancientSprayCm * 0.45);
 
         double ancientEnergyPerMl = ancientFreq * 0.00042 / Math.max(0.1, ancientFlowMlMin);
@@ -79,8 +79,9 @@ public class CrossEraComparisonService {
         CrossEraComparisonResult.DeviceProfile modernProfile = new CrossEraComparisonResult.DeviceProfile();
         modernProfile.setName("现代家用压电陶瓷超声波雾化器");
         modernProfile.setEra("1970s-至今 (现代消费电子)");
-        modernProfile.setWorkingPrinciple(us.getWorkingPrinciple() +
-                "；压电换能器以MHz频率振动→雾化片表面水膜受高频剪切→Rayleigh波不稳→形成微米级气雾");
+        modernProfile.setWorkingPrinciple(
+                "【行业标准】" + us.getWorkingPrinciple() + "；标准依据：GB/T 35515-2017、IEC 60335-2-98:2018" +
+                "；压电换能器以" + String.format(Locale.US, "%.0f", usFreq / 1.0e6) + "MHz频率振动→雾化片表面水膜受高频剪切→Rayleigh波不稳→形成微米级气雾");
         modernProfile.setFrequencyHz(usFreq);
         modernProfile.setParticleSizeMicrons(usParticleUm);
         modernProfile.setEnergyInputW(usPower);

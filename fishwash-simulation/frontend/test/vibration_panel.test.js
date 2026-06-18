@@ -30,6 +30,7 @@ global.document = {
 
 global.window = { addEventListener: function () {} };
 global.fetch = function () { return Promise.resolve({ json: function () { return Promise.resolve({ data: [] }); } }); };
+global.navigator = { vibrate: function () {} };
 
 var panelSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'vibration_panel.js'), 'utf8');
 eval(panelSrc);
@@ -424,6 +425,274 @@ suite('VibrationPanel — Tab切换逻辑', function () {
 
     document.querySelectorAll = origQSA;
     document.querySelector = origQS;
+  });
+});
+
+suite('VibrationPanel — 触觉反馈模拟', function () {
+  test('构造函数初始化触觉反馈属性', function () {
+    var p = new VibrationPanel();
+    assert.strictEqual(p.hapticFeedbackEnabled, false);
+    assert.strictEqual(p.hapticVibrationActive, false);
+    assert.strictEqual(p.hapticLastPattern, null);
+    assert.strictEqual(typeof p.hapticSupported, 'boolean');
+    assert.strictEqual(p.hapticIntensity, 1.0);
+    assert.strictEqual(p.hapticStickSlipPhase, 0);
+  });
+
+  test('_triggerHapticFeedback：低速摩擦产生微震模式', function () {
+    var p = new VibrationPanel();
+    p.hapticFeedbackEnabled = true;
+    p.hapticSupported = true;
+
+    var vibrateCalled = null;
+    global.navigator.vibrate = function (pattern) { vibrateCalled = pattern; };
+
+    var metrics = {
+      isDragging: true,
+      isActive: true,
+      velocity: 0.3,
+      frequency: 216,
+      amplitude: 0.15,
+      sprayHeight: 2.0,
+      modeOrder: 2
+    };
+
+    var hapticPatternEl = { textContent: '' };
+    var hapticDetailEl = { textContent: '' };
+    document._elements['hapticPattern'] = hapticPatternEl;
+    document._elements['hapticDetail'] = hapticDetailEl;
+    document._elements['frictionStatus'] = { textContent: '', classList: { add: function () {}, remove: function () {} } };
+
+    p._updateFrictionMetrics(metrics);
+    p._triggerHapticFeedback(metrics);
+
+    assert.strictEqual(p.hapticVibrationActive, true);
+    assert.ok(vibrateCalled !== null, '低速调用navigator.vibrate');
+    assert.ok(Array.isArray(vibrateCalled), '震动模式是数组');
+    assert.ok(vibrateCalled.length >= 4, '震动模式至少4段');
+    assert.ok(hapticDetailEl.textContent.indexOf('微震') !== -1, '低速显示"微震"');
+    assert.ok(hapticDetailEl.textContent.indexOf('2阶') !== -1, '显示2阶模态');
+    assert.ok(hapticPatternEl.textContent.indexOf('强度') !== -1, '显示强度');
+  });
+
+  test('_triggerHapticFeedback：中速摩擦产生麻酥感模式', function () {
+    var p = new VibrationPanel();
+    p.hapticFeedbackEnabled = true;
+    p.hapticSupported = true;
+
+    var vibrateCalled = null;
+    global.navigator.vibrate = function (pattern) { vibrateCalled = pattern; };
+
+    var hapticDetailEl = { textContent: '' };
+    document._elements['hapticDetail'] = hapticDetailEl;
+
+    var metrics = {
+      isDragging: true,
+      isActive: true,
+      velocity: 1.0,
+      frequency: 370,
+      amplitude: 0.45,
+      sprayHeight: 57.0,
+      modeOrder: 3
+    };
+
+    p._triggerHapticFeedback(metrics);
+
+    assert.ok(hapticDetailEl.textContent.indexOf('麻酥') !== -1, '中速显示"麻酥"');
+    assert.ok(hapticDetailEl.textContent.indexOf('3阶') !== -1, '显示3阶模态');
+    assert.ok(hapticDetailEl.textContent.indexOf('喷水57cm') !== -1, '显示喷水高度');
+    assert.ok(vibrateCalled && vibrateCalled.length >= 4, '震动模式有效');
+  });
+
+  test('_triggerHapticFeedback：高速摩擦产生强震模式', function () {
+    var p = new VibrationPanel();
+    p.hapticFeedbackEnabled = true;
+    p.hapticSupported = true;
+
+    var vibrateCalled = null;
+    global.navigator.vibrate = function (pattern) { vibrateCalled = pattern; };
+
+    var hapticDetailEl = { textContent: '' };
+    document._elements['hapticDetail'] = hapticDetailEl;
+
+    var metrics = {
+      isDragging: true,
+      isActive: true,
+      velocity: 2.0,
+      frequency: 590,
+      amplitude: 0.85,
+      sprayHeight: 85.0,
+      modeOrder: 4
+    };
+
+    p._triggerHapticFeedback(metrics);
+
+    assert.ok(hapticDetailEl.textContent.indexOf('强震') !== -1, '高速显示"强震"');
+    assert.ok(hapticDetailEl.textContent.indexOf('4阶') !== -1, '显示4阶模态');
+    assert.ok(vibrateCalled && vibrateCalled.length >= 6, '高频多段震动');
+  });
+
+  test('_triggerHapticFeedback：喷水阈值突破触发特殊震动', function () {
+    var p = new VibrationPanel();
+    p.hapticFeedbackEnabled = true;
+    p.hapticSupported = true;
+
+    var vibrateCalls = [];
+    global.navigator.vibrate = function (pattern) {
+      vibrateCalls.push(pattern);
+    };
+
+    var hapticDetailEl = { textContent: '' };
+    document._elements['hapticDetail'] = hapticDetailEl;
+
+    var metrics = {
+      isDragging: true,
+      isActive: true,
+      velocity: 1.5,
+      frequency: 450,
+      amplitude: 0.6,
+      sprayHeight: 42.0,
+      modeOrder: 3,
+      sprayThresholdCrossed: true
+    };
+
+    p._triggerHapticFeedback(metrics);
+
+    assert.ok(hapticDetailEl.textContent.indexOf('喷水阈值突破') !== -1, '显示阈值突破');
+    assert.ok(vibrateCalls.length >= 2, '至少两次震动调用（常规+阈值突破）');
+    var lastCall = vibrateCalls[vibrateCalls.length - 1];
+    assert.deepStrictEqual(lastCall, [100, 50, 100, 50, 200], '阈值突破用特殊5段模式');
+  });
+
+  test('_triggerHapticFeedback：未拖拽时停止触觉反馈', function () {
+    var p = new VibrationPanel();
+    p.hapticFeedbackEnabled = true;
+    p.hapticSupported = true;
+    p.hapticVibrationActive = true;
+
+    var vibrateCalled = null;
+    global.navigator.vibrate = function (pattern) { vibrateCalled = pattern; };
+
+    var hapticDetailEl = { textContent: 'some content' };
+    document._elements['hapticDetail'] = hapticDetailEl;
+
+    var metrics = {
+      isDragging: false,
+      isActive: true
+    };
+
+    p._triggerHapticFeedback(metrics);
+
+    assert.strictEqual(vibrateCalled, 0, '停止震动传入0');
+    assert.strictEqual(p.hapticVibrationActive, false, '状态置为非活跃');
+    assert.strictEqual(hapticDetailEl.textContent, '', '详情清空');
+  });
+
+  test('_stopHapticFeedback：正确停止震动并重置状态', function () {
+    var p = new VibrationPanel();
+    p.hapticVibrationActive = true;
+    p.hapticLastPattern = '10-20-30';
+    p.hapticStickSlipPhase = 2;
+    p.hapticSupported = true;
+
+    var vibrateCalled = null;
+    global.navigator.vibrate = function (pattern) { vibrateCalled = pattern; };
+
+    var hapticDetailEl = { textContent: 'some content' };
+    document._elements['hapticDetail'] = hapticDetailEl;
+
+    p._stopHapticFeedback();
+
+    assert.strictEqual(vibrateCalled, 0, '调用navigator.vibrate(0)');
+    assert.strictEqual(p.hapticVibrationActive, false);
+    assert.strictEqual(p.hapticLastPattern, null);
+    assert.strictEqual(p.hapticStickSlipPhase, 0);
+    assert.strictEqual(hapticDetailEl.textContent, '');
+  });
+
+  test('触觉反馈禁用时不触发震动', function () {
+    var p = new VibrationPanel();
+    p.hapticFeedbackEnabled = false;
+    p.hapticSupported = true;
+
+    var vibrateCalled = false;
+    global.navigator.vibrate = function () { vibrateCalled = true; };
+
+    var metrics = {
+      isDragging: true,
+      isActive: true,
+      velocity: 1.0,
+      frequency: 370,
+      modeOrder: 3
+    };
+
+    p._triggerHapticFeedback(metrics);
+
+    assert.strictEqual(vibrateCalled, false, '禁用时不调用震动');
+    assert.strictEqual(p.hapticVibrationActive, false, '不激活震动状态');
+  });
+
+  test('setHapticIntensity：正确限制强度范围0-1', function () {
+    var p = new VibrationPanel();
+    p.setHapticIntensity(0.5);
+    assert.strictEqual(p.hapticIntensity, 0.5);
+    p.setHapticIntensity(2.0);
+    assert.strictEqual(p.hapticIntensity, 1.0, '上限1.0');
+    p.setHapticIntensity(-0.5);
+    assert.strictEqual(p.hapticIntensity, 0.0, '下限0');
+  });
+
+  test('触觉反馈不支持时降级为模拟反馈', function () {
+    var p = new VibrationPanel();
+    p.hapticFeedbackEnabled = true;
+    p.hapticSupported = false;
+
+    var hapticPatternEl = { textContent: '' };
+    var frictionStatusEl = { textContent: '', classList: { add: function () {}, remove: function () {} } };
+    document._elements['hapticPattern'] = hapticPatternEl;
+    document._elements['frictionStatus'] = frictionStatusEl;
+
+    var metrics = {
+      isDragging: true,
+      isActive: true,
+      velocity: 1.0,
+      frequency: 370,
+      modeOrder: 3
+    };
+
+    p._updateFrictionMetrics(metrics);
+    p._triggerHapticFeedback(metrics);
+
+    assert.strictEqual(p.hapticVibrationActive, true, '即使不支持也激活状态');
+    assert.ok(hapticPatternEl.textContent.indexOf('模拟触觉反馈') !== -1, '显示模拟反馈');
+  });
+
+  test('触觉强度随速度递增', function () {
+    var p = new VibrationPanel();
+    p.hapticFeedbackEnabled = true;
+    p.hapticSupported = true;
+
+    var velocities = [0.3, 1.0, 2.0];
+    var intensities = [];
+    var hapticDetailEl = { textContent: '' };
+    document._elements['hapticDetail'] = hapticDetailEl;
+    document._elements['hapticPattern'] = { textContent: '' };
+
+    for (var i = 0; i < velocities.length; i++) {
+      p.hapticLastPattern = null;
+      p._triggerHapticFeedback({
+        isDragging: true,
+        isActive: true,
+        velocity: velocities[i],
+        frequency: 200 + velocities[i] * 200,
+        modeOrder: 2
+      });
+      intensities.push(p.hapticIntensity);
+    }
+
+    assert.ok(intensities[0] < intensities[1], '低速强度 < 中速强度');
+    assert.ok(intensities[1] < intensities[2], '中速强度 < 高速强度');
+    assert.ok(intensities[2] <= 1.0, '最大强度不超过1.0');
   });
 });
 

@@ -105,12 +105,17 @@ public class FrictionAnalysisService {
                 (Math.max(1e-6, dominantFreq) * Math.PI * 2.0 * k_stick * 0.001));
 
         Map<String, Object> mechParams = new LinkedHashMap<>();
+        mechParams.put("experimentReference", fp.getExperimentReference());
+        mechParams.put("experimentMethod", fp.getExperimentMethod());
+        mechParams.put("frictionCoefficientExperimentalValue", fp.getFrictionCoefficientExperimental());
         mechParams.put("normalForceN", N);
         mechParams.put("frictionCoefficient", mu);
         mechParams.put("effectiveFrictionCoefficientAfterLubrication", effectiveMu);
         mechParams.put("staticFrictionCoefficient", muStatic);
         mechParams.put("kineticFrictionCoefficient", muKinetic);
         mechParams.put("waterFilmLubricationFactor", waterLubrication);
+        mechParams.put("waterFilmLubricationReference", fp.getWaterFilmLubricationReference());
+        mechParams.put("minimumEffectiveMu", fp.getMinimumEffectiveMu());
         mechParams.put("frictionVelocityMps", v);
         mechParams.put("strokeLengthMeters", strokeLen);
         mechParams.put("strokeFrequencyHz", strokeFreq);
@@ -135,6 +140,8 @@ public class FrictionAnalysisService {
         mechParams.put("forceFreeBodyDiagram", buildFreeBodyDiagram(N, effectiveMu, v, handleRadius));
         mechParams.put("analysisNotes", Arrays.asList(
                 "F_tangential = μ_effective × N （库仑摩擦定律）",
+                "μ默认值取自实验测定：" + fp.getFrictionCoefficientExperimental() + "，来源：" + fp.getExperimentReference(),
+                "水膜润滑减摩效应：有效摩擦系数降低约" + String.format("%.0f%%", waterLubrication * 100) + "，" + fp.getWaterFilmLubricationReference(),
                 "粘滑频率估算：f_stickslip ≈ v_摩擦 / δ_breakaway，δ_breakaway = μ_s·N/k_stick",
                 "激励经双耳支点以扭矩T = F_t × R_handle 方式传递到盆壁",
                 "当粘滑主导频率接近某阶模态频率时，频率匹配因子→1，激励效率显著提高",
