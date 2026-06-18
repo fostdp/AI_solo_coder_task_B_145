@@ -43,6 +43,7 @@ public class CrossEraComparisonResult {
         private String dimension;
         private Double ancientValueNormalized;
         private Double modernValueNormalized;
+        private String description;
     }
 
     @Data

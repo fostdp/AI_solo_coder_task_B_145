@@ -438,11 +438,11 @@ var VibrationPanel = (function () {
 
   VibrationPanel.prototype._updateFrictionMetrics = function (m) {
     var map = {
-      metricVelocity: m && m.velocity ? m.velocity.toFixed(3) + ' m/s' : '--',
-      metricFreq: m && m.frequency ? m.frequency.toFixed(0) + ' Hz' : '--',
+      metricVelocity: m && m.velocity !== undefined && m.velocity !== null ? m.velocity.toFixed(3) + ' m/s' : '--',
+      metricFreq: m && m.frequency !== undefined && m.frequency !== null ? m.frequency.toFixed(0) + ' Hz' : '--',
       metricMode: m && m.modeOrder ? m.modeOrder + ' 阶模态' : '--',
-      metricSpray: m && m.sprayHeight ? m.sprayHeight.toFixed(1) + ' cm' : '--',
-      metricAmp: m && m.amplitude ? m.amplitude.toFixed(2) + ' mm' : '--'
+      metricSpray: m && m.sprayHeight !== undefined && m.sprayHeight !== null ? m.sprayHeight.toFixed(1) + ' cm' : '--',
+      metricAmp: m && m.amplitude !== undefined && m.amplitude !== null ? m.amplitude.toFixed(2) + ' mm' : '--'
     };
     Object.keys(map).forEach(function (k) {
       var el = document.getElementById(k);
@@ -577,72 +577,73 @@ var VibrationPanel = (function () {
 
   VibrationPanel.prototype._renderCrossEra = function (r) {
     if (!r) return;
-    var ancient = r.ancientProfile || {};
-    var modern = r.modernProfile || {};
-    var radar = r.radarData || [];
-    var eff = r.energyEfficiencyComparison || {};
+    var ancient = r.ancientFishWash || r.ancientProfile || {};
+    var modern = r.modernUltrasonic || r.modernProfile || {};
+    var radar = r.radarComparison || r.radarData || [];
+    var eff = r.energyEfficiency || r.energyEfficiencyComparison || {};
 
     var ancientData = [], modernData = [];
-    radar.forEach(function (pt) { ancientData.push(pt.ancientValue); modernData.push(pt.modernValue); });
+    radar.forEach(function (pt) { ancientData.push(pt.ancientValueNormalized); modernData.push(pt.modernValueNormalized); });
     this.crossEraRadarChart.data.datasets[0].data = ancientData;
     this.crossEraRadarChart.data.datasets[1].data = modernData;
     this.crossEraRadarChart.update();
 
     var aCard = document.getElementById('ancientCard');
     if (aCard) {
+      var ancientParticle = ancient.particleSizeMicrons ? (ancient.particleSizeMicrons / 1000).toFixed(1) + ' mm' : '2-5 mm';
       aCard.innerHTML =
         '<div><span>工作频率</span><span>' + (ancient.frequencyHz ? ancient.frequencyHz.toFixed(0) + ' Hz' : '200-800 Hz') + '</span></div>' +
         '<div><span>激励方式</span><span>手掌摩擦双耳</span></div>' +
         '<div><span>粒子形态</span><span>宏观水滴喷射</span></div>' +
-        '<div><span>液滴直径</span><span>' + (ancient.dropletSizeMm ? ancient.dropletSizeMm.toFixed(1) + ' mm' : '2-5 mm') + '</span></div>' +
-        '<div><span>最大喷射高度</span><span>' + (ancient.maxSprayHeightCm ? ancient.maxSprayHeightCm.toFixed(0) + ' cm' : '30-80 cm') + '</span></div>' +
-        '<div><span>能量效率</span><span>' + (ancient.energyEfficiencyPct ? ancient.energyEfficiencyPct.toFixed(1) + '%' : '~1.2%') + '</span></div>';
+        '<div><span>液滴直径</span><span>' + ancientParticle + '</span></div>' +
+        '<div><span>最大喷射高度</span><span>' + (ancient.waterSprayHeightCm ? ancient.waterSprayHeightCm.toFixed(0) + ' cm' : '30-80 cm') + '</span></div>' +
+        '<div><span>输入功率</span><span>' + (ancient.energyInputW ? ancient.energyInputW.toFixed(1) + ' W' : '~8.5 W') + '</span></div>';
     }
     var mCard = document.getElementById('modernCard');
     if (mCard) {
+      var modernParticle = modern.particleSizeMicrons ? modern.particleSizeMicrons.toFixed(0) + ' μm' : '1-5 μm';
       mCard.innerHTML =
         '<div><span>工作频率</span><span>' + (modern.frequencyHz ? (modern.frequencyHz / 1e6).toFixed(1) + ' MHz' : '1.7-3.0 MHz') + '</span></div>' +
         '<div><span>激励方式</span><span>PZT压电换能器</span></div>' +
         '<div><span>粒子形态</span><span>微米级冷雾</span></div>' +
-        '<div><span>雾粒直径</span><span>' + (modern.dropletSizeUm ? modern.dropletSizeUm.toFixed(0) + ' μm' : '1-5 μm') + '</span></div>' +
-        '<div><span>有效射程</span><span>' + (modern.maxSprayHeightCm ? modern.maxSprayHeightCm.toFixed(0) + ' cm' : '0.5-5 cm') + '</span></div>' +
-        '<div><span>能量效率</span><span>' + (modern.energyEfficiencyPct ? modern.energyEfficiencyPct.toFixed(1) + '%' : '~85%') + '</span></div>';
+        '<div><span>雾粒直径</span><span>' + modernParticle + '</span></div>' +
+        '<div><span>有效射程</span><span>' + (modern.waterSprayHeightCm ? modern.waterSprayHeightCm.toFixed(1) + ' cm' : '0.5-5 cm') + '</span></div>' +
+        '<div><span>输入功率</span><span>' + (modern.energyInputW ? modern.energyInputW.toFixed(1) + ' W' : '~20 W') + '</span></div>';
     }
     var eraParadigm = document.getElementById('eraParadigm');
     if (eraParadigm) {
-      eraParadigm.textContent = r.paradigmDifferences ? r.paradigmDifferences.join('\n') : '';
+      eraParadigm.textContent = r.vibrationParadigmDifference || (r.paradigmDifferences ? r.paradigmDifferences.join('\n') : '');
     }
     if (eff) {
       var effDiv = document.getElementById('energyEfficiencyComparison');
       if (effDiv) {
-        var aIn = eff.ancientInputPowerW || 15;
-        var aUse = eff.ancientUsefulW || 0.18;
-        var mIn = eff.modernInputPowerW || 20;
-        var mUse = eff.modernUsefulW || 17;
+        var aJ = eff.ancientJoulesPerMl || eff.ancientInputPowerW || 15;
+        var mJ = eff.modernJoulesPerMl || eff.modernInputPowerW || 20;
         var ratio = eff.efficiencyRatio ? eff.efficiencyRatio.toFixed(1) : '70.8';
-        effDiv.innerHTML = '<h5 style="margin:10px 0 0 0;padding:8px;background:rgba(46,139,87,0.1);border-radius:6px;color:#2E8B57;">能量效率对比：古代 ' + aIn + 'W 输入 → ' + aUse + 'W 有用；现代 ' + mIn + 'W → ' + mUse + 'W 有用；效率比 ' + ratio + ':1</h5>';
+        var interp = eff.interpretation || '';
+        effDiv.innerHTML = '<h5 style="margin:10px 0 0 0;padding:8px;background:rgba(46,139,87,0.1);border-radius:6px;color:#2E8B57;">能量效率对比：古代 ' + aJ + ' J/ml；现代 ' + mJ + ' J/ml；效率比 ' + ratio + ':1。' + interp + '</h5>';
       }
     }
   };
 
   VibrationPanel.prototype._renderCrossEraFallback = function () {
     this._renderCrossEra({
-      ancientProfile: { frequencyHz: 245.0, dropletSizeMm: 3.0, maxSprayHeightCm: 55, energyEfficiencyPct: 1.2 },
-      modernProfile: { frequencyHz: 1700000, dropletSizeUm: 3, maxSprayHeightCm: 3, energyEfficiencyPct: 85.0 },
-      radarData: [
-        { dimension: '工作频率', ancientValue: 25, modernValue: 100 },
-        { dimension: '高度', ancientValue: 85, modernValue: 18 },
-        { dimension: '粒子尺寸', ancientValue: 95, modernValue: 10 },
-        { dimension: '能量效率', ancientValue: 8, modernValue: 100 },
-        { dimension: '工艺复杂度', ancientValue: 92, modernValue: 58 },
-        { dimension: '文化价值', ancientValue: 100, modernValue: 20 }
+      ancientFishWash: { frequencyHz: 245.0, particleSizeMicrons: 3000, waterSprayHeightCm: 55, energyInputW: 8.5 },
+      modernUltrasonic: { frequencyHz: 1700000, particleSizeMicrons: 3, waterSprayHeightCm: 0.1, energyInputW: 20 },
+      radarComparison: [
+        { dimension: '工作频率', ancientValueNormalized: 25, modernValueNormalized: 100 },
+        { dimension: '高度', ancientValueNormalized: 85, modernValueNormalized: 18 },
+        { dimension: '粒子尺寸', ancientValueNormalized: 95, modernValueNormalized: 10 },
+        { dimension: '能量效率', ancientValueNormalized: 8, modernValueNormalized: 100 },
+        { dimension: '工艺复杂度', ancientValueNormalized: 92, modernValueNormalized: 58 },
+        { dimension: '文化价值', ancientValueNormalized: 100, modernValueNormalized: 20 }
       ],
       paradigmDifferences: [
         '【1. 尺度差异】鱼洗：10² Hz 机械驻波 (λ≈cm级) 大尺度相干振动；超声雾化：10⁶ Hz 压电振动 (λ≈μm级) 纳米位移振幅',
         '【2. 能量传递】鱼洗：库仑摩擦 → 结构共振 → 液固耦合 → 界面断裂（能量沿结构→液界面）；超声雾化：逆压电 → PZT厚度振动 → 聚焦空化 → 毛细管波破碎',
         '【3. 文化跨度】两千年共振原理的延续：本质都是"振动破碎液面"。从手掌拍打到PZT驱动，跨越整个工业史，但物理原理不变——共振 + 流体表面不稳定性破碎。'
       ],
-      energyEfficiencyComparison: { ancientInputPowerW: 15.0, ancientUsefulW: 0.18, modernInputPowerW: 20.0, modernUsefulW: 17.0, efficiencyRatio: 70.8 }
+      energyEfficiency: { ancientJoulesPerMl: 8.5, modernJoulesPerMl: 0.12, efficiencyRatio: 70.8, interpretation: '现代雾化器效率远高于古代鱼洗' }
     });
   };
 

@@ -29,6 +29,10 @@ public class FrictionAnalysisService {
         FishWashDevice device = fishWashDeviceRepository.findById(deviceId)
                 .orElseThrow(() -> new RuntimeException("Device not found"));
 
+        if (req == null) {
+            req = new FrictionAnalysisRequest();
+        }
+
         FishWashProperties.FrictionProps fp = fishWashProperties.getFriction();
 
         double N = req.getNormalForceN() != null ? req.getNormalForceN() : fp.getDefaultNormalForce();
